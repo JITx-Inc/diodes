@@ -1,0 +1,108 @@
+#use-added-syntax(jitx)
+defpackage diodes/MMSZ4-zener:
+  import core
+  import jitx
+  import jitx/commands
+
+  import jsl/ensure
+  import jsl/errors
+  import jsl/symbols
+  import jsl/landpatterns
+
+
+public defstruct Zener-Specs :
+  part-number:String
+  zener-V:Toleranced
+  zener-I:Double
+  fw-V:Double
+with:
+  printer => true
+  keyword-constructor => true
+
+val DEF-zener-I = 50.0e-6
+val DEF-fw-V = 0.9
+
+public val MMSZ4-specs = [
+  1800 => Zener-Specs(
+    part-number = "MMSZ4678T1G",
+    zener-V = min-typ-max(1.71, 1.8, 1.89),
+    zener-I = DEF-zener-I
+    fw-V = DEF-fw-V
+  ),
+  3300 => Zener-Specs(
+    part-number = "MMSZ4684T1G",
+    zener-V = min-typ-max(3.13, 3.3, 3.47),
+    zener-I = DEF-zener-I
+    fw-V = DEF-fw-V
+  )
+  5100 => Zener-Specs(
+    part-number = "MMSZ4689T1G",
+    zener-V = min-typ-max(4.85, 5.1, 5.36),
+    zener-I = DEF-zener-I
+    fw-V = DEF-fw-V
+
+  )
+  5600 => Zener-Specs(
+    part-number = "MMSZ4690T1G",
+    zener-V = min-typ-max(5.32, 5.6, 5.88),
+    zener-I = DEF-zener-I
+    fw-V = DEF-fw-V
+  )
+]
+
+defn get-specs (mv:Int) -> Zener-Specs:
+  val m = for kvp in MMSZ4-specs first :
+    if key(kvp) == mv:
+      One(value(kvp))
+    else:
+      None()
+
+  match(m):
+    (_:None): throw $ ValueError("No Zener Matches Desired Voltage: %_" % [mv])
+    (given:One<Zener-Specs>): value(given)
+
+defn make-specs (specs:Zener-Specs):
+  inside pcb-module:
+    property(self.zener-V) = zener-V(specs)
+    property(self.zener-I) = zener-I(specs)
+    property(self.fw-V) = fw-V(specs)
+
+
+public pcb-component device (mv:Int) :
+  ensure-positive!("mv", mv)
+  manufacturer = "onsemi"
+  val specs = get-specs(mv)
+  mpn = part-number(specs)
+  description = to-string $ "Zener Diode, SOD-123, %_ Vz" % [to-double(mv) / 1000.0]
+  datasheet = "https://www.onsemi.com/pdf/datasheet/mmsz4678t1-d.pdf"
+  reference-prefix = "D"
+
+  make-specs(specs)
+
+  pin-properties :
+    [ pin : Ref | pads : Ref ... ]
+    [ c         | c              ]
+    [ a         | a              ]
+
+  val symb = ZenerDiodeSymbol()
+  assign-symbol $ create-symbol(symb)
+
+
+  val pkg = Molded-2pin(
+    lead-span = min-max(3.56, 3.86)
+    polarized? = true,
+    pin-1-id? = One $ #R(c),
+    lead = Molded-2pin-Lead(
+      length = typ(0.25)
+      width = min-max(0.51, 0.71)
+    )
+    package-body = PackageBody(
+      length = min-max(2.54, 2.84),
+      width = min-max(1.4, 1.8),
+      height = min-max(0.94, 1.35)
+    )
+    keep-out = One $ IntraPadKeepOut(),
+  )
+
+  assign-landpattern $ create-landpattern(pkg)
+

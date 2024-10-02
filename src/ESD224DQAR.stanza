@@ -1,0 +1,111 @@
+#use-added-syntax(jitx)
+defpackage diodes/ESD224DQAR:
+  import core
+  import jitx
+  import jitx/commands
+
+  import jsl/symbols
+  import jsl/landpatterns
+  import jsl/pin-assignment
+
+
+public pcb-component device :
+  manufacturer = "Texas Instruments"
+  mpn = "ESD224DQAR"
+
+  pin-properties :
+    [ pin:Ref | pads:Int ... | side:Dir | row:Int ]
+    [ IOC[1]  | 1            | Left     | 0 ]
+    [ IOC[2]  | 2            | Left     | 0 ]
+    [ IOC[3]  | 4            | Left     | 0 ]
+    [ IOC[4]  | 5            | Left     | 0 ]
+    [ IOS[1]  | 10           | Right    | 0 ]
+    [ IOS[2]  | 9            | Right    | 0 ]
+    [ IOS[3]  | 7            | Right    | 0 ]
+    [ IOS[4]  | 6            | Right    | 0 ]
+    [ GND[1]  | 3            | Left     | 1 ]
+    [ GND[2]  | 8            | Left     | 1 ]
+
+  val box = BoxSymbol(self)
+  set-grid(box, [2,2])
+  assign-symbol $ create-symbol(box)
+
+  val pkg = USON-IRREG()
+  assign-landpattern $ create-landpattern(pkg)
+
+  property(self.num-single-chs) = 4
+  property(self.num-dp-chs) = 2
+
+  for i in 1 through 4 do:
+    add-pass-through(self.IOC[i], self.IOS[i])
+    pin-model(self.IOC[i], self.IOS[i]) = PinModel(typ(0.0), typ(0.0))
+
+  val pairs = [
+    [1, 2]
+    [3, 4]
+  ]
+
+  for pair in pairs do:
+    val [P, N] = pair
+    bidir-swappable-dual-pair(self.IOC[P], self.IOC[N], self.IOS[P], self.IOS[N])
+
+
+public defstruct USON-IRREG <: Package :
+  package-body:PackageBody with:
+    as-method => true
+    default => PackageBody(
+      width = min-max(0.9, 1.1)
+      length = min-max(2.4, 2.6)
+      height = min-max(0.5, 0.55)
+    )
+with:
+  printer => true
+
+
+public defmethod name (pkg:USON-IRREG) -> String :
+  "USON-10"
+
+public defmethod courtyard-excess (pkg:USON-IRREG) -> Double :
+  0.25
+
+public defmethod build-silkscreen (
+  pkg:USON-IRREG
+  root:VirtualLP
+  ) -> False:
+  val eo = EdgesOutline(
+    pkg-body = package-body(pkg),
+    density-level = density-level(pkg)
+  )
+  build-outline(eo, root)
+  build-smd-pin-1-dot(root, dir = Left)
+
+public defmethod build-pads (
+  pkg:USON-IRREG,
+  root:VirtualLP,
+  ) -> False :
+
+  val num-scheme = Std-IC-Numbering(10)
+  val planner = RoundedRectanglePadPlanner(0.05)
+  val lead-grid = GridPlanner(
+      pitch = Dims(0.835, 0.5)
+      columns = 2
+      rows = 5
+      anchor = C
+    )
+  val pad-seq = for pos in grid(lead-grid) seq?:
+    val [r, c] = [row(pos), column(pos)]
+    val pad-id = to-pad-id(num-scheme, r, c)
+    val pad-gen? = pad-generator(planner, r, c)
+    ; Center 2 ground pads are differently shaped
+    ;  from the others.
+    val pad-size = if pad-id == 3 or pad-id == 8:
+      Dims(0.565, 0.4)
+    else:
+      Dims(0.565, 0.2)
+    match(pad-gen?):
+      (_:False): None()
+      (pad-gen):
+        val cls = build-vpad-classes(r, c)
+        One $ VirtualPad(pad-id, pad-gen(pad-size), pose(pos), class = cls)
+
+  append-all(root, pad-seq)

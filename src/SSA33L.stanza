@@ -1,0 +1,52 @@
+#use-added-syntax(jitx)
+defpackage diodes/SSA33L:
+  import core
+  import jitx
+  import jitx/commands
+
+  import jsl/symbols
+  import jsl/landpatterns
+
+public pcb-component component :
+  manufacturer = "Vishay General Semiconductor"
+  mpn = "SSA33L-E3/61T"
+  description = "Schottky Diode"
+  reference-prefix = "D"
+
+  pin-properties :
+    [ pin : Ref | pads : Ref ... ]
+    [ a         | a              ]
+    [ c         | c              ]
+
+  val symb = SchottkyDiodeSymbol()
+  assign-symbol $ create-symbol(symb)
+
+  val pkg = Molded-2pin(
+    lead-span = min-max(4.93, 5.28)
+    polarized? = true,
+    pin-1-id? = One $ #R(c),
+    keep-out = One $ IntraPadKeepOut(),
+    lead = Molded-2pin-Lead(
+      length = min-max(0.76, 1.52)
+      width = min-max(1.25, 1.65)
+    )
+    package-body = PackageBody(
+      length = min-max(3.99, 4.5),
+      width = min-max(2.54, 2.79),
+      height = min-max(1.98, 2.29)
+    )
+  )
+
+  assign-landpattern $ create-landpattern(pkg)
+
+  property(self.V-fw-STP) = min-typ-max(0.43, 0.43, 0.45)
+  property(self.V-fw-HITEMP) = min-typ-max(0.34, 0.34, 0.38)
+  property(self.V-fw) = property(self.V-fw-STP)
+  property(self.V-DC) = typ(30.0)
+  property(self.V-RRM) = typ(30.0)
+  property(self.V-RMS) = typ(21.0)
+
+  property(self.I-R-STP) = min-max(3.0e-6, 0.5e-3)
+  property(self.I-R-HITEMP) = min-max(5.0e-3, 20.0e-3)
+
+  property(self.I-fw-MAX) = 3.0
