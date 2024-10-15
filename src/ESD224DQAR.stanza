@@ -4,10 +4,7 @@ defpackage diodes/ESD224DQAR:
   import jitx
   import jitx/commands
 
-  import jsl/symbols
-  import jsl/landpatterns
-  import jsl/pin-assignment
-
+  import jsl
 
 public pcb-component device :
   manufacturer = "Texas Instruments"
@@ -49,6 +46,34 @@ public pcb-component device :
     val [P, N] = pair
     bidir-swappable-dual-pair(self.IOC[P], self.IOC[N], self.IOS[P], self.IOS[N])
 
+doc: \<DOC>
+Create a Circuit Pool of ESD224 ICs
+
+This function is a generator and expects to be called from a
+`pcb-module` context.
+
+@param num-ICs Total number of ICs to instantiate in the pool
+@param GND Net for the ground that the ICs will terminate to.
+@return Constructed ESD pool instance. The user can make `require`
+requests to this object for `dual-pair` or `pass-through` bundles.
+<DOC>
+public defn create-esd-pool (num-ICs:Int, GND:JITXObject) -> Instance :
+  inside pcb-module:
+
+    val esd-tmp = CircuitTemplate(
+      diodes/ESD224DQAR/device, [
+        BundleStack(dual-pair, 2),
+        BundleStack(pass-through, 4)
+      ], name = "esd")
+
+    val pool-type = create-circuit-pool(esd-tmp, num-ICs)
+    inst esd : pool-type
+
+    for i in 0 to length(esd.pool-esd) do:
+      for j in indices(esd.pool-esd[i].GND) do:
+        net (GND, esd.pool-esd[i].GND[j])
+
+    esd
 
 public defstruct USON-IRREG <: Package :
   package-body:PackageBody with:
